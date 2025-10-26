@@ -285,7 +285,11 @@ async function submitStatus() {
         return;
     }
 
+    // アクティビティか状態の少なくともどちらかが選択されていれば送信
     if (!currentSelection.activity && !currentSelection.state) {
+        // どちらも選択されていない場合は、送信せずにフェッチを実行
+        // これにより、他のメンバーの更新を表示できる
+        await fetchStatus();
         return;
     }
 
