@@ -1,0 +1,391 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 10px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    text-align: center;
+    position: relative;
+}
+
+h1 {
+    font-size: 1.8em;
+    margin-bottom: 5px;
+}
+
+h2 {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.settings-btn {
+    position: absolute;
+    right: 20px;
+    top: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 2px solid white;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: all 0.3s ease;
+}
+
+.settings-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.settings-btn:active {
+    transform: scale(0.95);
+}
+
+.status-display,
+.my-status,
+.settings-content {
+    padding: 20px;
+}
+
+.status-display {
+    border-bottom: 2px solid #f0f0f0;
+}
+
+.family-status {
+    display: grid;
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.member-card {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease;
+}
+
+.member-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.member-info {
+    flex: 1;
+}
+
+.member-name {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.member-activity,
+.member-state {
+    font-size: 1em;
+    color: #555;
+    margin-bottom: 5px;
+}
+
+.member-activity-label,
+.member-state-label {
+    font-size: 0.85em;
+    color: #888;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.member-time {
+    font-size: 0.85em;
+    color: #888;
+    margin-top: 8px;
+}
+
+.user-select {
+    margin-bottom: 20px;
+}
+
+.user-select label {
+    display: block;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: bold;
+}
+
+#userName {
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    background: white;
+    cursor: pointer;
+    transition: border-color 0.3s ease;
+}
+
+#userName:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+/* Activity and State sections */
+.activity-section,
+.state-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.activity-section:last-child,
+.state-section:last-child {
+    border-bottom: none;
+}
+
+.activity-section h3,
+.state-section h3 {
+    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 12px;
+    font-weight: bold;
+}
+
+.activity-buttons,
+.state-buttons,
+.status-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.activity-btn,
+.state-btn,
+.status-btn {
+    padding: 16px;
+    font-size: 0.95em;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+    color: white;
+    min-height: 60px;
+}
+
+.activity-btn:hover,
+.state-btn:hover,
+.status-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.activity-btn:active,
+.state-btn:active,
+.status-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.activity-btn.active,
+.state-btn.active {
+    border-color: #333;
+    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Activity button colors */
+.activity-btn.home { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.activity-btn.work { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.activity-btn.school { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.activity-btn.out { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.activity-btn.shopping { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.activity-btn.eating { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+.activity-btn.sleep { background: linear-gradient(135deg, #667eea 0%, #a8edea 100%); }
+.activity-btn.other { background: linear-gradient(135deg, #9b9ede 0%, #fbc2eb 100%); }
+
+/* State button colors */
+.state-btn.ok { background: linear-gradient(135deg, #52c41a 0%, #91d426 100%); }
+.state-btn.chat { background: linear-gradient(135deg, #1890ff 0%, #69b1ff 100%); }
+.state-btn.busy { background: linear-gradient(135deg, #d4380d 0%, #ff7a45 100%); }
+.state-btn.mood { background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%); }
+.state-btn.sick { background: linear-gradient(135deg, #fa541c 0%, #ffbb96 100%); }
+.state-btn.tired { background: linear-gradient(135deg, #b37feb 0%, #d3adf7 100%); }
+
+/* Legacy status button colors */
+.status-btn.home { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.status-btn.work { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+.status-btn.school { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.status-btn.out { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+.status-btn.shopping { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+.status-btn.eating { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+.status-btn.busy { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333; }
+.status-btn.free { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); }
+
+.hidden {
+    display: none !important;
+}
+
+#settingsView {
+    padding: 20px;
+}
+
+.setting-item {
+    margin-bottom: 20px;
+}
+
+.setting-item label {
+    display: block;
+    font-size: 1.1em;
+    margin-bottom: 8px;
+    color: #555;
+    font-weight: bold;
+}
+
+#pollingInterval {
+    width: 100%;
+    padding: 12px;
+    font-size: 1em;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+}
+
+#pollingInterval:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.setting-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn-primary,
+.btn-secondary {
+    flex: 1;
+    padding: 15px;
+    font-size: 1.1em;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.btn-secondary {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.btn-primary:hover,
+.btn-secondary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:active,
+.btn-secondary:active {
+    transform: translateY(0);
+}
+
+.empty-status {
+    text-align: center;
+    padding: 40px 20px;
+    color: #999;
+    font-size: 1.1em;
+}
+
+/* スマートフォン対応 */
+@media (max-width: 600px) {
+    body {
+        padding: 0;
+    }
+
+    .container {
+        border-radius: 0;
+        min-height: 100vh;
+    }
+
+    header {
+        padding: 15px;
+    }
+
+    h1 {
+        font-size: 1.5em;
+    }
+
+    h2 {
+        font-size: 1.2em;
+    }
+
+    .settings-btn {
+        right: 15px;
+        top: 15px;
+        padding: 6px 12px;
+        font-size: 0.9em;
+    }
+
+    .activity-buttons,
+    .state-buttons,
+    .status-buttons {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .activity-btn,
+    .state-btn,
+    .status-btn {
+        padding: 14px;
+        font-size: 0.9em;
+        min-height: 55px;
+    }
+
+    .member-card {
+        padding: 15px;
+    }
+
+    .member-name {
+        font-size: 1.1em;
+    }
+
+    .member-status {
+        font-size: 1em;
+    }
+}
+
+@media (max-width: 400px) {
+    .status-buttons {
+        grid-template-columns: 1fr;
+    }
+}

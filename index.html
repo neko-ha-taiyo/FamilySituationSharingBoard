@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>家族状況共有</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>家族状況共有</h1>
+            <button id="settingsBtn" class="settings-btn">⚙️ 設定</button>
+        </header>
+
+        <div id="mainView">
+            <section class="status-display">
+                <h2>家族の状況</h2>
+                <div id="familyStatus" class="family-status">
+                    <!-- 家族の状況がここに表示されます -->
+                </div>
+            </section>
+
+            <section class="my-status">
+                <h2>自分の状況を更新</h2>
+                <div class="user-select">
+                    <label for="userName">名前:</label>
+                    <select id="userName">
+                        <option value="">選択してください</option>
+                        <option value="たー">たー</option>
+                        <option value="はー">はー</option>
+                    </select>
+                </div>
+
+                <!-- 今何をしているか -->
+                <div class="activity-section">
+                    <h3>今何をしているか</h3>
+                    <div class="activity-buttons">
+                        <button class="activity-btn home" data-activity="在宅">🏠 在宅</button>
+                        <button class="activity-btn work" data-activity="仕事中">💼 仕事中</button>
+                        <button class="activity-btn school" data-activity="学校">🎒 学校</button>
+                        <button class="activity-btn out" data-activity="外出中">🚶 外出中</button>
+                        <button class="activity-btn shopping" data-activity="買い物">🛒 買い物</button>
+                        <button class="activity-btn eating" data-activity="食事中">🍽️ 食事中</button>
+                        <button class="activity-btn sleep" data-activity="寝中">😴 寝中</button>
+                        <button class="activity-btn other" data-activity="その他">❓ その他</button>
+                    </div>
+                </div>
+
+                <!-- 今の状態 -->
+                <div class="state-section">
+                    <h3>今の状態</h3>
+                    <div class="state-buttons">
+                        <button class="state-btn ok" data-state="普通に話しかけてOK">✅ 普通に話しかけてOK</button>
+                        <button class="state-btn chat" data-state="雑談ならOK">💬 雑談ならOK</button>
+                        <button class="state-btn busy" data-state="話しかけないで">🔇 話しかけないで</button>
+                        <button class="state-btn mood" data-state="機嫌悪い">😠 機嫌悪い</button>
+                        <button class="state-btn sick" data-state="体調悪い">🤒 体調悪い</button>
+                        <button class="state-btn tired" data-state="疲れてる">😫 疲れてる</button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div id="settingsView" class="hidden">
+            <h2>設定</h2>
+            <div class="settings-content">
+                <div class="setting-item">
+                    <label for="pollingInterval">更新間隔 (秒):</label>
+                    <input type="number" id="pollingInterval" min="1" max="300" value="5">
+                </div>
+                <div class="setting-buttons">
+                    <button id="saveSettings" class="btn-primary">保存</button>
+                    <button id="cancelSettings" class="btn-secondary">キャンセル</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
