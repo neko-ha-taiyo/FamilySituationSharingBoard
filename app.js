@@ -1,6 +1,8 @@
 // API エンドポイント
+// ウィンドウのオリジンを使用（自動的に正しいホストとポートを使用）
 const API_BASE = window.location.origin;
 const API_STATUS = `${API_BASE}/api/status`;
+const API_CONFIG = `${API_BASE}/api/config`;
 
 // グローバル変数
 let pollingInterval = 5; // デフォルト5秒
