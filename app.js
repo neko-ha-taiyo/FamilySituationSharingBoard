@@ -125,8 +125,12 @@ function sendNotification(title, options = {}) {
 
 // ステータスのハッシュを計算
 function calculateStatusHash(members) {
-    const statusStrings = members.map(m => `${m.name}:${m.activity}:${m.state}`).join('|');
-    return btoa(statusStrings); // Base64エンコード（簡易ハッシュ）
+    // JSON.stringify で簡単にシリアライズ（日本語対応）
+    return JSON.stringify(members.map(m => ({
+        name: m.name,
+        activity: m.activity,
+        state: m.state
+    })));
 }
 
 // イベントリスナーの設定
