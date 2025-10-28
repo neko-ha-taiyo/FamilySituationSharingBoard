@@ -101,6 +101,11 @@ dist
 # vitepress build output
 **/.vitepress/dist
 
+# SQLite database files (keep source files)
+db/*.db
+db/*.db-shm
+db/*.db-wal
+
 # vitepress cache directory
 **/.vitepress/cache
 

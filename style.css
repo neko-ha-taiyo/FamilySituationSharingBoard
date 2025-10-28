@@ -222,11 +222,12 @@ h2 {
 /* Activity button colors */
 .activity-btn.home { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
 .activity-btn.work { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-.activity-btn.school { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+.activity-btn.meeting { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
 .activity-btn.out { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
 .activity-btn.shopping { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
 .activity-btn.eating { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
 .activity-btn.sleep { background: linear-gradient(135deg, #667eea 0%, #a8edea 100%); }
+.activity-btn.toilet { background: linear-gradient(135deg, #fdcbf1 0%, #e6dee9 100%); }
 .activity-btn.other { background: linear-gradient(135deg, #9b9ede 0%, #fbc2eb 100%); }
 
 /* State button colors */
@@ -236,6 +237,8 @@ h2 {
 .state-btn.mood { background: linear-gradient(135deg, #eb2f96 0%, #ff85c0 100%); }
 .state-btn.sick { background: linear-gradient(135deg, #fa541c 0%, #ffbb96 100%); }
 .state-btn.tired { background: linear-gradient(135deg, #b37feb 0%, #d3adf7 100%); }
+.state-btn.unaware { background: linear-gradient(135deg, #595959 0%, #8c8c8c 100%); }
+.state-btn.callme { background: linear-gradient(135deg, #ffd666 0%, #ffc53d 100%); }
 
 /* Legacy status button colors */
 .status-btn.home { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
