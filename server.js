@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
+const db = require('./db/database');
 
 const app = express();
 const PORT = config.PORT;
@@ -85,8 +86,15 @@ app.get('/api/config', (req, res) => {
 
 // API: 全メンバーの状況を取得
 app.get('/api/status', (req, res) => {
-    const data = readData();
-    res.json(data);
+    try {
+        const members = db.getAllMembers();
+        res.json({ members });
+    } catch (error) {
+        console.error('Error fetching status from DB:', error);
+        // フォールバック: JSONファイルから読み込み
+        const data = readData();
+        res.json(data);
+    }
 });
 
 // API: SSEストリームエンドポイント
@@ -105,8 +113,14 @@ app.get('/api/status/stream', (req, res) => {
     res.flushHeaders();
 
     // 接続直後に現在の状態を送信
-    const data = readData();
-    res.write(`data: ${JSON.stringify(data)}\n\n`);
+    try {
+        const members = db.getAllMembers();
+        res.write(`data: ${JSON.stringify({ members })}\n\n`);
+    } catch (error) {
+        console.error('Error fetching status for SSE:', error);
+        const data = readData();
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+    }
 
     // クライアントを接続リストに追加
     const clientId = Date.now() + Math.random();
@@ -133,47 +147,200 @@ app.post('/api/status', (req, res) => {
         return res.status(400).json({ error: '名前が必要です' });
     }
 
-    const data = readData();
-    const memberIndex = data.members.findIndex(m => m.name === name);
+    try {
+        const timestamp = new Date().toISOString();
 
-    const timestamp = new Date().toISOString();
-
-    if (memberIndex >= 0) {
-        // 既存メンバーの更新
-        data.members[memberIndex] = {
-            name,
-            activity: activity || data.members[memberIndex].activity || '',
-            state: state || data.members[memberIndex].state || '',
-            timestamp
-        };
-    } else {
-        // 新規メンバーの追加
-        data.members.push({
+        // メンバー情報を更新または追加
+        const member = db.insertOrUpdateMember({
             name,
             activity: activity || '',
             state: state || '',
             timestamp
         });
-    }
 
-    if (writeData(data)) {
-        res.json({ success: true, data: data.members });
-    } else {
-        res.status(500).json({ error: 'データの保存に失敗しました' });
+        // 履歴に記録
+        db.insertHistory(member.id, activity || '', state || '', timestamp);
+
+        // JSONファイルにも書き込み（後方互換性のため）
+        const data = readData();
+        const memberIndex = data.members.findIndex(m => m.name === name);
+
+        if (memberIndex >= 0) {
+            data.members[memberIndex] = {
+                name,
+                activity: activity || data.members[memberIndex].activity || '',
+                state: state || data.members[memberIndex].state || '',
+                timestamp
+            };
+        } else {
+            data.members.push({
+                name,
+                activity: activity || '',
+                state: state || '',
+                timestamp
+            });
+        }
+        writeData(data);
+
+        // 全メンバーを取得してレスポンス
+        const allMembers = db.getAllMembers();
+        res.json({ success: true, data: allMembers });
+    } catch (error) {
+        console.error('Error updating status:', error);
+
+        // フォールバック: JSONファイルのみで処理
+        const data = readData();
+        const memberIndex = data.members.findIndex(m => m.name === name);
+        const timestamp = new Date().toISOString();
+
+        if (memberIndex >= 0) {
+            data.members[memberIndex] = {
+                name,
+                activity: activity || data.members[memberIndex].activity || '',
+                state: state || data.members[memberIndex].state || '',
+                timestamp
+            };
+        } else {
+            data.members.push({
+                name,
+                activity: activity || '',
+                state: state || '',
+                timestamp
+            });
+        }
+
+        if (writeData(data)) {
+            res.json({ success: true, data: data.members });
+        } else {
+            res.status(500).json({ error: 'データの保存に失敗しました' });
+        }
     }
 });
 
 // API: 特定メンバーの状況を削除
 app.delete('/api/status/:name', (req, res) => {
     const { name } = req.params;
-    const data = readData();
 
-    data.members = data.members.filter(m => m.name !== name);
+    try {
+        // データベースから削除（履歴もCASCADEで削除される）
+        const deleted = db.deleteMember(name);
 
-    if (writeData(data)) {
-        res.json({ success: true, data: data.members });
-    } else {
-        res.status(500).json({ error: 'データの削除に失敗しました' });
+        if (!deleted) {
+            return res.status(404).json({ error: 'メンバーが見つかりません' });
+        }
+
+        // JSONファイルからも削除（後方互換性のため）
+        const data = readData();
+        data.members = data.members.filter(m => m.name !== name);
+        writeData(data);
+
+        const allMembers = db.getAllMembers();
+        res.json({ success: true, data: allMembers });
+    } catch (error) {
+        console.error('Error deleting member:', error);
+
+        // フォールバック: JSONファイルのみで処理
+        const data = readData();
+        data.members = data.members.filter(m => m.name !== name);
+
+        if (writeData(data)) {
+            res.json({ success: true, data: data.members });
+        } else {
+            res.status(500).json({ error: 'データの削除に失敗しました' });
+        }
+    }
+});
+
+// API: 全履歴取得
+app.get('/api/history', (req, res) => {
+    try {
+        const { from, to, limit = 100, offset = 0 } = req.query;
+
+        // パラメータバリデーション
+        const parsedLimit = Math.min(parseInt(limit, 10) || 100, 1000);
+        const parsedOffset = parseInt(offset, 10) || 0;
+
+        if (parsedLimit > 1000) {
+            return res.status(400).json({ error: 'Limit exceeds maximum (1000)' });
+        }
+
+        const options = {
+            from: from || null,
+            to: to || null,
+            limit: parsedLimit,
+            offset: parsedOffset
+        };
+
+        const { history, total } = db.getAllHistory(options);
+
+        res.json({
+            history: history.map(h => ({
+                id: h.id,
+                member: {
+                    id: h.member_id,
+                    name: h.member_name
+                },
+                activity: h.activity,
+                state: h.state,
+                changed_at: h.changed_at
+            })),
+            total,
+            limit: parsedLimit,
+            offset: parsedOffset
+        });
+    } catch (error) {
+        console.error('Error fetching history:', error);
+        res.status(500).json({ error: '履歴の取得に失敗しました' });
+    }
+});
+
+// API: メンバー別履歴取得
+app.get('/api/history/:name', (req, res) => {
+    try {
+        const { name } = req.params;
+        const { from, to, limit = 100, offset = 0 } = req.query;
+
+        // メンバーの存在確認
+        const member = db.getMemberByName(name);
+        if (!member) {
+            return res.status(404).json({ error: 'メンバーが見つかりません' });
+        }
+
+        // パラメータバリデーション
+        const parsedLimit = Math.min(parseInt(limit, 10) || 100, 1000);
+        const parsedOffset = parseInt(offset, 10) || 0;
+
+        if (parsedLimit > 1000) {
+            return res.status(400).json({ error: 'Limit exceeds maximum (1000)' });
+        }
+
+        const options = {
+            from: from || null,
+            to: to || null,
+            limit: parsedLimit,
+            offset: parsedOffset
+        };
+
+        const { history, total } = db.getHistoryByMemberId(member.id, options);
+
+        res.json({
+            member: {
+                id: member.id,
+                name: member.name
+            },
+            history: history.map(h => ({
+                id: h.id,
+                activity: h.activity,
+                state: h.state,
+                changed_at: h.changed_at
+            })),
+            total,
+            limit: parsedLimit,
+            offset: parsedOffset
+        });
+    } catch (error) {
+        console.error('Error fetching member history:', error);
+        res.status(500).json({ error: '履歴の取得に失敗しました' });
     }
 });
 
@@ -185,8 +352,14 @@ fs.watch(DATA_FILE, (eventType) => {
         clearTimeout(watchTimeout);
     }
     watchTimeout = setTimeout(() => {
-        const data = readData();
-        broadcastToClients(data);
+        try {
+            const members = db.getAllMembers();
+            broadcastToClients({ members });
+        } catch (error) {
+            console.error('Error broadcasting from DB:', error);
+            const data = readData();
+            broadcastToClients(data);
+        }
         console.log(`File changed (${eventType}), broadcasted to ${sseClients.length} clients`);
     }, 100);
 });
@@ -208,7 +381,22 @@ setInterval(() => {
 
 // サーバー起動
 initDataFile();
+
+// データベース初期化とマイグレーション
+try {
+    db.initDatabase();
+    console.log('Database initialized successfully');
+
+    // 既存JSONデータからの移行
+    const migrationResult = db.migrateFromJSON(DATA_FILE);
+    console.log(`Data migration completed: ${migrationResult.migrated} migrated, ${migrationResult.skipped} skipped`);
+} catch (error) {
+    console.error('Database initialization failed:', error);
+    console.log('Server will continue with JSON-only mode');
+}
+
 app.listen(PORT, () => {
     console.log(`サーバーが起動しました: http://localhost:${PORT}`);
     console.log(`SSE endpoint: http://localhost:${PORT}/api/status/stream`);
+    console.log(`History endpoint: http://localhost:${PORT}/api/history`);
 });
