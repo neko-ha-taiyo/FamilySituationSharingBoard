@@ -47,7 +47,6 @@ const currentSelection = {
 
 // 初期化
 function init() {
-    console.log('[INIT] Starting application initialization...');
     loadSettings();
     loadUserName();
     initializeNotifications();
@@ -55,10 +54,9 @@ function init() {
 
     // SSEがサポートされているかチェック
     if (typeof EventSource !== 'undefined' && useSSE) {
-        console.log('[INIT] SSE is supported, connecting to:', API_BASE + '/api/status/stream');
         connectSSE();
     } else {
-        console.warn('[INIT] EventSource not supported or disabled, using polling');
+        console.warn('EventSource not supported, using polling fallback');
         fetchStatus();
         startPolling();
     }
@@ -175,46 +173,35 @@ function setupEventListeners() {
 
 // SSE接続の確立
 function connectSSE() {
-    console.log('[SSE] Connecting...');
     // 既存の接続があれば閉じる
     if (eventSource) {
-        console.log('[SSE] Closing existing connection');
         eventSource.close();
     }
 
     const API_STREAM = `${API_BASE}/api/status/stream`;
-    console.log('[SSE] Opening EventSource to:', API_STREAM);
     eventSource = new EventSource(API_STREAM);
 
     // メッセージ受信時の処理
     eventSource.onmessage = (event) => {
-        console.log('[SSE] Message received:', event.data.substring(0, 100) + '...');
         try {
             const data = JSON.parse(event.data);
-            console.log('[SSE] Parsed data, members count:', data.members ? data.members.length : 0);
 
             // ステータス変更の検知
             const currentHash = calculateStatusHash(data.members);
             if (lastStatusHash !== null && lastStatusHash !== currentHash) {
-                console.log('[SSE] Status changed, sending notification');
                 notifyStatusChange(data.members);
-            } else {
-                console.log('[SSE] First load or no change');
             }
             lastStatusHash = currentHash;
 
             // 表示の更新
-            console.log('[SSE] Updating display...');
             displayStatus(data.members);
-            console.log('[SSE] Display updated successfully');
         } catch (error) {
-            console.error('[SSE] Error parsing SSE data:', error);
+            console.error('SSE: Error parsing data:', error);
         }
     };
 
     // 接続開始時
     eventSource.onopen = () => {
-        console.log('[SSE] ✓ Connected successfully!');
         reconnectAttempts = 0; // 再接続カウンタをリセット
 
         // 再接続タイマーをクリア
@@ -229,8 +216,7 @@ function connectSSE() {
 
     // エラー発生時
     eventSource.onerror = (error) => {
-        console.error('[SSE] ✗ Connection error:', error);
-        console.error('[SSE] EventSource readyState:', eventSource.readyState);
+        console.error('SSE: Connection error');
         eventSource.close();
 
         reconnectAttempts++;
@@ -238,7 +224,6 @@ function connectSSE() {
         // 自動再接続
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
             const delay = Math.min(RECONNECT_INTERVAL * reconnectAttempts, 30000);
-            console.log(`SSE: Reconnecting in ${delay}ms... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
 
             if (!reconnectTimer) {
                 reconnectTimer = setTimeout(() => {
@@ -248,7 +233,7 @@ function connectSSE() {
             }
         } else {
             // フォールバック: ポーリングに切り替え
-            console.error('SSE: Max reconnect attempts reached, falling back to polling');
+            console.warn('SSE: Max reconnect attempts reached, falling back to polling');
             useSSE = false;
             fetchStatus();
             startPolling();
@@ -343,9 +328,7 @@ function notifyStatusChange(members) {
 
 // 状況の表示
 function displayStatus(members) {
-    console.log('[DISPLAY] displayStatus called with', members ? members.length : 0, 'members');
     if (!members || members.length === 0) {
-        console.log('[DISPLAY] No members, showing empty message');
         elements.familyStatus.innerHTML = '<div class="empty-status">まだ誰も状況を更新していません</div>';
         return;
     }
@@ -355,7 +338,6 @@ function displayStatus(members) {
         return new Date(b.timestamp) - new Date(a.timestamp);
     });
 
-    console.log('[DISPLAY] Rendering', sortedMembers.length, 'members');
     elements.familyStatus.innerHTML = sortedMembers.map(member => {
         const time = formatTime(member.timestamp);
         const activityDisplay = member.activity ? `<div class="member-activity"><span class="member-activity-label">活動:</span>${escapeHtml(member.activity)}</div>` : '';
@@ -372,7 +354,6 @@ function displayStatus(members) {
             </div>
         `;
     }).join('');
-    console.log('[DISPLAY] HTML updated, innerHTML length:', elements.familyStatus.innerHTML.length);
 }
 
 // アクティビティの選択
