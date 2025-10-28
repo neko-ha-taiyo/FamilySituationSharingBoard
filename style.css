@@ -267,6 +267,19 @@ h2 {
     font-weight: bold;
 }
 
+.setting-item p {
+    font-size: 1.1em;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.setting-description {
+    font-size: 0.9em;
+    color: #888;
+    font-style: italic;
+    margin-top: 5px;
+}
+
 #pollingInterval {
     width: 100%;
     padding: 12px;

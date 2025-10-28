@@ -36,8 +36,6 @@ const elements = {
     settingsBtn: document.getElementById('settingsBtn'),
     mainView: document.getElementById('mainView'),
     settingsView: document.getElementById('settingsView'),
-    pollingIntervalInput: document.getElementById('pollingInterval'),
-    saveSettingsBtn: document.getElementById('saveSettings'),
     cancelSettingsBtn: document.getElementById('cancelSettings')
 };
 
@@ -70,7 +68,6 @@ function loadSettings() {
     const savedInterval = localStorage.getItem(STORAGE_KEYS.POLLING_INTERVAL);
     if (savedInterval) {
         pollingInterval = parseInt(savedInterval, 10);
-        elements.pollingIntervalInput.value = pollingInterval;
     }
 }
 
@@ -172,7 +169,6 @@ function setupEventListeners() {
 
     // 設定ボタン
     elements.settingsBtn.addEventListener('click', showSettings);
-    elements.saveSettingsBtn.addEventListener('click', saveSettings);
     elements.cancelSettingsBtn.addEventListener('click', hideSettings);
 }
 
@@ -461,21 +457,8 @@ function hideSettings() {
     elements.mainView.classList.remove('hidden');
 }
 
-// 設定の保存
+// 設定の保存（将来の拡張用に残す）
 function saveSettings() {
-    const newInterval = parseInt(elements.pollingIntervalInput.value, 10);
-
-    if (isNaN(newInterval) || newInterval < 1 || newInterval > 300) {
-        showError('更新間隔は1〜300秒の範囲で設定してください');
-        return;
-    }
-
-    pollingInterval = newInterval;
-    localStorage.setItem(STORAGE_KEYS.POLLING_INTERVAL, pollingInterval);
-
-    // ポーリングを再起動
-    startPolling();
-
     showSuccess('設定を保存しました');
     hideSettings();
 }
