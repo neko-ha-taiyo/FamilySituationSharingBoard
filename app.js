@@ -5,12 +5,20 @@ const API_STATUS = `${API_BASE}/api/status`;
 const API_CONFIG = `${API_BASE}/api/config`;
 
 // グローバル変数
-let pollingInterval = 5; // デフォルト5秒
+let pollingInterval = 5; // デフォルト5秒（フォールバック用）
 let pollingTimer = null;
 let lastStatusHash = null; // 前回のステータスハッシュ
 let notificationPermission = 'default'; // 通知許可状態
 let lastErrorTime = 0; // 最後のエラー表示時刻
 const ERROR_DISPLAY_INTERVAL = 10000; // エラー表示の最小間隔（ミリ秒）
+
+// SSE関連の変数
+let eventSource = null;
+let reconnectTimer = null;
+let reconnectAttempts = 0;
+const RECONNECT_INTERVAL = 3000; // 3秒後に再接続
+const MAX_RECONNECT_ATTEMPTS = 10; // 最大再接続試行回数
+let useSSE = true; // SSEを使用するかどうか
 
 // ローカルストレージのキー
 const STORAGE_KEYS = {
@@ -28,8 +36,6 @@ const elements = {
     settingsBtn: document.getElementById('settingsBtn'),
     mainView: document.getElementById('mainView'),
     settingsView: document.getElementById('settingsView'),
-    pollingIntervalInput: document.getElementById('pollingInterval'),
-    saveSettingsBtn: document.getElementById('saveSettings'),
     cancelSettingsBtn: document.getElementById('cancelSettings')
 };
 
@@ -45,8 +51,16 @@ function init() {
     loadUserName();
     initializeNotifications();
     setupEventListeners();
-    fetchStatus();
-    startPolling();
+
+    // SSEがサポートされているかチェック
+    if (typeof EventSource !== 'undefined' && useSSE) {
+        console.log('SSE is supported, connecting...');
+        connectSSE();
+    } else {
+        console.warn('EventSource not supported or disabled, using polling');
+        fetchStatus();
+        startPolling();
+    }
 }
 
 // 設定の読み込み
@@ -54,7 +68,6 @@ function loadSettings() {
     const savedInterval = localStorage.getItem(STORAGE_KEYS.POLLING_INTERVAL);
     if (savedInterval) {
         pollingInterval = parseInt(savedInterval, 10);
-        elements.pollingIntervalInput.value = pollingInterval;
     }
 }
 
@@ -156,8 +169,100 @@ function setupEventListeners() {
 
     // 設定ボタン
     elements.settingsBtn.addEventListener('click', showSettings);
-    elements.saveSettingsBtn.addEventListener('click', saveSettings);
     elements.cancelSettingsBtn.addEventListener('click', hideSettings);
+}
+
+// SSE接続の確立
+function connectSSE() {
+    // 既存の接続があれば閉じる
+    if (eventSource) {
+        eventSource.close();
+    }
+
+    const API_STREAM = `${API_BASE}/api/status/stream`;
+    eventSource = new EventSource(API_STREAM);
+
+    // メッセージ受信時の処理
+    eventSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+
+            // ステータス変更の検知
+            const currentHash = calculateStatusHash(data.members);
+            if (lastStatusHash !== null && lastStatusHash !== currentHash) {
+                notifyStatusChange(data.members);
+            }
+            lastStatusHash = currentHash;
+
+            // 表示の更新
+            displayStatus(data.members);
+
+            console.log('SSE: Status updated');
+        } catch (error) {
+            console.error('Error parsing SSE data:', error);
+        }
+    };
+
+    // 接続開始時
+    eventSource.onopen = () => {
+        console.log('SSE: Connected');
+        reconnectAttempts = 0; // 再接続カウンタをリセット
+
+        // 再接続タイマーをクリア
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
+        // エラーがクリアされた
+        lastErrorTime = 0;
+    };
+
+    // エラー発生時
+    eventSource.onerror = (error) => {
+        console.error('SSE: Connection error', error);
+        eventSource.close();
+
+        reconnectAttempts++;
+
+        // 自動再接続
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            const delay = Math.min(RECONNECT_INTERVAL * reconnectAttempts, 30000);
+            console.log(`SSE: Reconnecting in ${delay}ms... (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+
+            if (!reconnectTimer) {
+                reconnectTimer = setTimeout(() => {
+                    reconnectTimer = null;
+                    connectSSE();
+                }, delay);
+            }
+        } else {
+            // フォールバック: ポーリングに切り替え
+            console.error('SSE: Max reconnect attempts reached, falling back to polling');
+            useSSE = false;
+            fetchStatus();
+            startPolling();
+
+            // エラーメッセージを表示
+            const now = Date.now();
+            if (now - lastErrorTime > ERROR_DISPLAY_INTERVAL) {
+                showError('リアルタイム接続に失敗しました。ポーリングモードに切り替えました。');
+                lastErrorTime = now;
+            }
+        }
+    };
+}
+
+// SSE接続を閉じる
+function closeSSE() {
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
 }
 
 // 状況の取得
@@ -352,21 +457,8 @@ function hideSettings() {
     elements.mainView.classList.remove('hidden');
 }
 
-// 設定の保存
+// 設定の保存（将来の拡張用に残す）
 function saveSettings() {
-    const newInterval = parseInt(elements.pollingIntervalInput.value, 10);
-
-    if (isNaN(newInterval) || newInterval < 1 || newInterval > 300) {
-        showError('更新間隔は1〜300秒の範囲で設定してください');
-        return;
-    }
-
-    pollingInterval = newInterval;
-    localStorage.setItem(STORAGE_KEYS.POLLING_INTERVAL, pollingInterval);
-
-    // ポーリングを再起動
-    startPolling();
-
     showSuccess('設定を保存しました');
     hideSettings();
 }
@@ -416,5 +508,8 @@ function showError(message) {
 // ページ読み込み時に初期化
 document.addEventListener('DOMContentLoaded', init);
 
-// ページがアンロードされる前にポーリングを停止
-window.addEventListener('beforeunload', stopPolling);
+// ページがアンロードされる前にクリーンアップ
+window.addEventListener('beforeunload', () => {
+    closeSSE();
+    stopPolling();
+});
