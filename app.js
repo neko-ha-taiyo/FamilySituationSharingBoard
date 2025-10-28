@@ -1,15 +1,22 @@
 // API エンドポイント
+// ウィンドウのオリジンを使用（自動的に正しいホストとポートを使用）
 const API_BASE = window.location.origin;
 const API_STATUS = `${API_BASE}/api/status`;
+const API_CONFIG = `${API_BASE}/api/config`;
 
 // グローバル変数
 let pollingInterval = 5; // デフォルト5秒
 let pollingTimer = null;
+let lastStatusHash = null; // 前回のステータスハッシュ
+let notificationPermission = 'default'; // 通知許可状態
+let lastErrorTime = 0; // 最後のエラー表示時刻
+const ERROR_DISPLAY_INTERVAL = 10000; // エラー表示の最小間隔（ミリ秒）
 
 // ローカルストレージのキー
 const STORAGE_KEYS = {
     POLLING_INTERVAL: 'pollingInterval',
-    USER_NAME: 'userName'
+    USER_NAME: 'userName',
+    NOTIFICATION_ENABLED: 'notificationEnabled'
 };
 
 // DOM要素
@@ -36,6 +43,7 @@ const currentSelection = {
 function init() {
     loadSettings();
     loadUserName();
+    initializeNotifications();
     setupEventListeners();
     fetchStatus();
     startPolling();
@@ -64,6 +72,65 @@ function saveUserName() {
     if (userName) {
         localStorage.setItem(STORAGE_KEYS.USER_NAME, userName);
     }
+}
+
+// 通知機能の初期化
+function initializeNotifications() {
+    // ブラウザが通知をサポートしているかチェック
+    if (!('Notification' in window)) {
+        console.log('このブラウザは通知をサポートしていません');
+        return;
+    }
+
+    // 現在の通知許可状態を確認
+    notificationPermission = Notification.permission;
+
+    // 許可がまだ得られていない場合、ユーザーに許可を求める
+    if (notificationPermission === 'default') {
+        requestNotificationPermission();
+    }
+}
+
+// 通知許可のリクエスト
+function requestNotificationPermission() {
+    Notification.requestPermission().then(permission => {
+        notificationPermission = permission;
+        if (permission === 'granted') {
+            console.log('通知が有効になりました');
+            localStorage.setItem(STORAGE_KEYS.NOTIFICATION_ENABLED, 'true');
+        }
+    });
+}
+
+// プッシュ通知を送信
+function sendNotification(title, options = {}) {
+    if (!('Notification' in window)) {
+        return;
+    }
+
+    if (notificationPermission !== 'granted') {
+        return;
+    }
+
+    try {
+        new Notification(title, {
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text x="50" y="70" font-size="70" text-anchor="middle" dominant-baseline="central">👨‍👩‍👧‍👦</text></svg>',
+            badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="%23667eea"/></svg>',
+            ...options
+        });
+    } catch (error) {
+        console.error('通知送信エラー:', error);
+    }
+}
+
+// ステータスのハッシュを計算
+function calculateStatusHash(members) {
+    // JSON.stringify で簡単にシリアライズ（日本語対応）
+    return JSON.stringify(members.map(m => ({
+        name: m.name,
+        activity: m.activity,
+        state: m.state
+    })));
 }
 
 // イベントリスナーの設定
@@ -98,14 +165,65 @@ async function fetchStatus() {
     try {
         const response = await fetch(API_STATUS);
         if (!response.ok) {
-            throw new Error('Failed to fetch status');
+            throw new Error(`HTTP ${response.status}: Failed to fetch status`);
         }
         const data = await response.json();
+
+        // ステータスが変わったかチェック
+        const currentHash = calculateStatusHash(data.members);
+        if (lastStatusHash !== null && lastStatusHash !== currentHash) {
+            // ステータスが変わった場合、通知を送信
+            notifyStatusChange(data.members);
+        }
+        lastStatusHash = currentHash;
+
         displayStatus(data.members);
+
+        // エラーがクリアされた
+        lastErrorTime = 0;
     } catch (error) {
         console.error('Error fetching status:', error);
-        showError('状況の取得に失敗しました');
+
+        // エラーを表示する際の最小間隔をチェック
+        const now = Date.now();
+        if (now - lastErrorTime > ERROR_DISPLAY_INTERVAL) {
+            showError(`状況の取得に失敗しました: ${error.message}`);
+            lastErrorTime = now;
+        }
     }
+}
+
+// ステータス変更を検知して通知
+function notifyStatusChange(members) {
+    // 最新の更新を取得
+    if (!members || members.length === 0) {
+        return;
+    }
+
+    // 最新の更新者を取得
+    const latestMember = members.reduce((latest, current) => {
+        return new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest;
+    });
+
+    // 通知メッセージを構築
+    let message = latestMember.name;
+    const updates = [];
+
+    if (latestMember.activity) {
+        updates.push(`活動: ${latestMember.activity}`);
+    }
+    if (latestMember.state) {
+        updates.push(`状態: ${latestMember.state}`);
+    }
+
+    const body = updates.length > 0 ? updates.join(' / ') : '状況を更新しました';
+
+    // 通知を送信
+    sendNotification(`${message}の状況が更新されました`, {
+        body: body,
+        tag: 'status-update',
+        requireInteraction: false
+    });
 }
 
 // 状況の表示
@@ -169,11 +287,15 @@ async function submitStatus() {
     const userName = elements.userName.value;
 
     if (!userName) {
-        alert('名前を選択してください');
+        showError('名前を選択してください');
         return;
     }
 
+    // アクティビティか状態の少なくともどちらかが選択されていれば送信
     if (!currentSelection.activity && !currentSelection.state) {
+        // どちらも選択されていない場合は、送信せずにフェッチを実行
+        // これにより、他のメンバーの更新を表示できる
+        await fetchStatus();
         return;
     }
 
@@ -235,7 +357,7 @@ function saveSettings() {
     const newInterval = parseInt(elements.pollingIntervalInput.value, 10);
 
     if (isNaN(newInterval) || newInterval < 1 || newInterval > 300) {
-        alert('更新間隔は1〜300秒の範囲で設定してください');
+        showError('更新間隔は1〜300秒の範囲で設定してください');
         return;
     }
 
@@ -281,15 +403,14 @@ function escapeHtml(text) {
 
 // 成功メッセージの表示
 function showSuccess(message) {
-    // シンプルな実装: アラートを使用
-    // より洗練された実装としてトースト通知を追加することも可能
+    // コンソールのみに出力（静かな成功）
     console.log('Success:', message);
 }
 
 // エラーメッセージの表示
 function showError(message) {
+    // コンソールに出力（アラートは表示しない）
     console.error('Error:', message);
-    alert(message);
 }
 
 // ページ読み込み時に初期化

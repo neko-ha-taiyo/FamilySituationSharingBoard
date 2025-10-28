@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const config = require('./config');
 
 const app = express();
-const PORT = process.env.PORT || 3003;
+const PORT = config.PORT;
 const DATA_FILE = path.join(__dirname, 'family-status.json');
 
 // ミドルウェア
@@ -43,6 +44,13 @@ function writeData(data) {
         return false;
     }
 }
+
+// API: 設定を取得
+app.get('/api/config', (req, res) => {
+    res.json({
+        port: PORT
+    });
+});
 
 // API: 全メンバーの状況を取得
 app.get('/api/status', (req, res) => {
