@@ -91,11 +91,18 @@ app.get('/api/status', (req, res) => {
 
 // API: SSEストリームエンドポイント
 app.get('/api/status/stream', (req, res) => {
-    // SSEヘッダーの設定
+    // SSEヘッダーの設定（nginx/openrestyのバッファリングを無効化）
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Accel-Buffering', 'no'); // nginxのバッファリングを無効化
+
+    // ステータスコードを明示的に設定
+    res.status(200);
+
+    // 即座にヘッダーを送信
+    res.flushHeaders();
 
     // 接続直後に現在の状態を送信
     const data = readData();
