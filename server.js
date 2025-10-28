@@ -150,16 +150,20 @@ app.post('/api/status', (req, res) => {
     try {
         const timestamp = new Date().toISOString();
 
+        // 既存メンバー情報を取得（nullの場合に既存値を保持するため）
+        const existingMember = db.getMemberByName(name);
+
         // メンバー情報を更新または追加
+        // activity/state が null または undefined の場合は既存値を保持
         const member = db.insertOrUpdateMember({
             name,
-            activity: activity || '',
-            state: state || '',
+            activity: activity !== null && activity !== undefined ? activity : (existingMember?.activity || ''),
+            state: state !== null && state !== undefined ? state : (existingMember?.state || ''),
             timestamp
         });
 
-        // 履歴に記録
-        db.insertHistory(member.id, activity || '', state || '', timestamp);
+        // 履歴に記録（実際に保存された値を記録）
+        db.insertHistory(member.id, member.activity || '', member.state || '', timestamp);
 
         // JSONファイルにも書き込み（後方互換性のため）
         const data = readData();
@@ -168,15 +172,15 @@ app.post('/api/status', (req, res) => {
         if (memberIndex >= 0) {
             data.members[memberIndex] = {
                 name,
-                activity: activity || data.members[memberIndex].activity || '',
-                state: state || data.members[memberIndex].state || '',
+                activity: activity !== null && activity !== undefined ? activity : data.members[memberIndex].activity || '',
+                state: state !== null && state !== undefined ? state : data.members[memberIndex].state || '',
                 timestamp
             };
         } else {
             data.members.push({
                 name,
-                activity: activity || '',
-                state: state || '',
+                activity: activity !== null && activity !== undefined ? activity : '',
+                state: state !== null && state !== undefined ? state : '',
                 timestamp
             });
         }
@@ -196,15 +200,15 @@ app.post('/api/status', (req, res) => {
         if (memberIndex >= 0) {
             data.members[memberIndex] = {
                 name,
-                activity: activity || data.members[memberIndex].activity || '',
-                state: state || data.members[memberIndex].state || '',
+                activity: activity !== null && activity !== undefined ? activity : data.members[memberIndex].activity || '',
+                state: state !== null && state !== undefined ? state : data.members[memberIndex].state || '',
                 timestamp
             };
         } else {
             data.members.push({
                 name,
-                activity: activity || '',
-                state: state || '',
+                activity: activity !== null && activity !== undefined ? activity : '',
+                state: state !== null && state !== undefined ? state : '',
                 timestamp
             });
         }
