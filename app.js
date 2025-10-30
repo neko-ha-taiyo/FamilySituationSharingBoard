@@ -3,6 +3,7 @@
 const API_BASE = window.location.origin;
 const API_STATUS = `${API_BASE}/api/status`;
 const API_CONFIG = `${API_BASE}/api/config`;
+const API_HISTORY = `${API_BASE}/api/history`;
 
 // グローバル変数
 let pollingInterval = 5; // デフォルト5秒（フォールバック用）
@@ -11,6 +12,9 @@ let lastStatusHash = null; // 前回のステータスハッシュ
 let notificationPermission = 'default'; // 通知許可状態
 let lastErrorTime = 0; // 最後のエラー表示時刻
 const ERROR_DISPLAY_INTERVAL = 10000; // エラー表示の最小間隔（ミリ秒）
+let timeUpdateInterval = null; // 時刻更新用のインターバル
+let currentMembers = []; // 現在表示中のメンバー情報
+let currentHistoryItems = []; // 現在表示中の履歴アイテム
 
 // SSE関連の変数
 let eventSource = null;
@@ -35,14 +39,31 @@ const elements = {
     stateButtons: document.querySelectorAll('.state-btn'),
     settingsBtn: document.getElementById('settingsBtn'),
     mainView: document.getElementById('mainView'),
+    historyView: document.getElementById('historyView'),
     settingsView: document.getElementById('settingsView'),
-    cancelSettingsBtn: document.getElementById('cancelSettings')
+    cancelSettingsBtn: document.getElementById('cancelSettings'),
+    currentTab: document.getElementById('currentTab'),
+    historyTab: document.getElementById('historyTab'),
+    historyList: document.getElementById('historyList'),
+    historyMemberFilter: document.getElementById('historyMemberFilter'),
+    historyDateFilter: document.getElementById('historyDateFilter'),
+    loadMoreHistory: document.getElementById('loadMoreHistory')
 };
 
 // 現在の選択状態
 const currentSelection = {
     activity: null,
     state: null
+};
+
+// 履歴表示の状態
+const historyState = {
+    currentMember: '',
+    currentDateFilter: 'today',
+    offset: 0,
+    limit: 50,
+    hasMore: false,
+    isLoading: false
 };
 
 // 初期化
@@ -60,6 +81,9 @@ function init() {
         fetchStatus();
         startPolling();
     }
+
+    // 時刻のリアルタイム更新を開始（1分ごと）
+    startTimeUpdateInterval();
 }
 
 // 設定の読み込み
@@ -169,6 +193,17 @@ function setupEventListeners() {
     // 設定ボタン
     elements.settingsBtn.addEventListener('click', showSettings);
     elements.cancelSettingsBtn.addEventListener('click', hideSettings);
+
+    // タブ切り替え
+    elements.currentTab.addEventListener('click', showCurrentView);
+    elements.historyTab.addEventListener('click', showHistoryView);
+
+    // 履歴フィルター
+    elements.historyMemberFilter.addEventListener('change', onHistoryFilterChange);
+    elements.historyDateFilter.addEventListener('change', onHistoryFilterChange);
+
+    // さらに読み込むボタン
+    elements.loadMoreHistory.addEventListener('click', loadMoreHistory);
 }
 
 // SSE接続の確立
@@ -330,6 +365,7 @@ function notifyStatusChange(members) {
 function displayStatus(members) {
     if (!members || members.length === 0) {
         elements.familyStatus.innerHTML = '<div class="empty-status">まだ誰も状況を更新していません</div>';
+        currentMembers = [];
         return;
     }
 
@@ -338,13 +374,16 @@ function displayStatus(members) {
         return new Date(b.timestamp) - new Date(a.timestamp);
     });
 
+    // 現在のメンバー情報を保存
+    currentMembers = sortedMembers;
+
     elements.familyStatus.innerHTML = sortedMembers.map(member => {
         const time = formatTime(member.timestamp);
         const activityDisplay = member.activity ? `<div class="member-activity"><span class="member-activity-label">活動:</span>${escapeHtml(member.activity)}</div>` : '';
         const stateDisplay = member.state ? `<div class="member-state"><span class="member-state-label">状態:</span>${escapeHtml(member.state)}</div>` : '';
 
         return `
-            <div class="member-card">
+            <div class="member-card" data-timestamp="${member.timestamp}">
                 <div class="member-info">
                     <div class="member-name">${escapeHtml(member.name)}</div>
                     ${activityDisplay}
@@ -500,6 +539,252 @@ function showError(message) {
     console.error('Error:', message);
 }
 
+// タブビューの切り替え
+function showCurrentView() {
+    elements.currentTab.classList.add('active');
+    elements.historyTab.classList.remove('active');
+    elements.mainView.classList.remove('hidden');
+    elements.historyView.classList.add('hidden');
+    elements.settingsView.classList.add('hidden');
+}
+
+function showHistoryView() {
+    elements.currentTab.classList.remove('active');
+    elements.historyTab.classList.add('active');
+    elements.mainView.classList.add('hidden');
+    elements.historyView.classList.remove('hidden');
+    elements.settingsView.classList.add('hidden');
+
+    // 履歴をロード
+    loadHistory();
+}
+
+// 履歴フィルター変更時の処理
+function onHistoryFilterChange() {
+    historyState.currentMember = elements.historyMemberFilter.value;
+    historyState.currentDateFilter = elements.historyDateFilter.value;
+    historyState.offset = 0;
+    loadHistory();
+}
+
+// 履歴のロード
+async function loadHistory(append = false) {
+    if (historyState.isLoading) return;
+
+    historyState.isLoading = true;
+
+    if (!append) {
+        historyState.offset = 0;
+        elements.historyList.innerHTML = '<div class="history-empty">読み込み中...</div>';
+    }
+
+    try {
+        const params = new URLSearchParams({
+            limit: historyState.limit,
+            offset: historyState.offset
+        });
+
+        // 日付フィルター
+        const dateRange = getDateRange(historyState.currentDateFilter);
+        if (dateRange.from) {
+            params.append('from', dateRange.from);
+        }
+        if (dateRange.to) {
+            params.append('to', dateRange.to);
+        }
+
+        // メンバーフィルター
+        const url = historyState.currentMember
+            ? `${API_HISTORY}/${encodeURIComponent(historyState.currentMember)}?${params}`
+            : `${API_HISTORY}?${params}`;
+
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error('Failed to fetch history');
+        }
+
+        const data = await response.json();
+        const history = data.history || [];
+        const total = data.total || 0;
+
+        // 次のページがあるかチェック
+        historyState.hasMore = (historyState.offset + historyState.limit) < total;
+
+        if (append) {
+            displayHistory(history, true);
+        } else {
+            displayHistory(history, false);
+        }
+
+        // さらに読み込むボタンの表示/非表示
+        if (historyState.hasMore) {
+            elements.loadMoreHistory.classList.remove('hidden');
+        } else {
+            elements.loadMoreHistory.classList.add('hidden');
+        }
+
+    } catch (error) {
+        console.error('Error fetching history:', error);
+        elements.historyList.innerHTML = '<div class="history-empty">履歴の取得に失敗しました</div>';
+    } finally {
+        historyState.isLoading = false;
+    }
+}
+
+// さらに履歴を読み込む
+async function loadMoreHistory() {
+    historyState.offset += historyState.limit;
+    await loadHistory(true);
+}
+
+// 日付範囲を取得
+function getDateRange(filter) {
+    const now = new Date();
+    const range = { from: null, to: null };
+
+    switch (filter) {
+        case 'today':
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            range.from = startOfDay.toISOString();
+            break;
+        case 'week':
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            range.from = weekAgo.toISOString();
+            break;
+        case 'month':
+            const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+            range.from = monthAgo.toISOString();
+            break;
+        case 'all':
+            // 全期間なのでfrom/toを指定しない
+            break;
+    }
+
+    return range;
+}
+
+// 履歴の表示
+function displayHistory(history, append = false) {
+    if (!history || history.length === 0) {
+        if (!append) {
+            elements.historyList.innerHTML = '<div class="history-empty">履歴がありません</div>';
+            currentHistoryItems = [];
+        }
+        return;
+    }
+
+    // 履歴アイテムを保存（追加の場合は結合）
+    if (append) {
+        currentHistoryItems = currentHistoryItems.concat(history);
+    } else {
+        currentHistoryItems = history;
+    }
+
+    const historyHtml = history.map(item => {
+        const memberName = item.member ? item.member.name : '不明';
+        const time = formatHistoryTime(item.changed_at);
+        const activity = item.activity ? escapeHtml(item.activity) : '未設定';
+        const state = item.state ? escapeHtml(item.state) : '未設定';
+
+        return `
+            <div class="history-item" data-timestamp="${item.changed_at}">
+                <div class="history-header">
+                    <div class="history-member-name">${escapeHtml(memberName)}</div>
+                    <div class="history-time">${time}</div>
+                </div>
+                <div class="history-change">
+                    <div class="history-field">
+                        <span class="history-field-label">活動:</span>
+                        <span class="history-value">${activity}</span>
+                    </div>
+                    <div class="history-field">
+                        <span class="history-field-label">状態:</span>
+                        <span class="history-value">${state}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (append) {
+        elements.historyList.insertAdjacentHTML('beforeend', historyHtml);
+    } else {
+        elements.historyList.innerHTML = historyHtml;
+    }
+}
+
+// 履歴用の時刻フォーマット
+function formatHistoryTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    if (diffMins < 1) {
+        return 'たった今';
+    } else if (diffMins < 60) {
+        return `${diffMins}分前`;
+    } else if (diffHours < 24) {
+        return `${diffHours}時間前`;
+    } else {
+        const year = date.getFullYear();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        return `${year}/${month}/${day} ${hours}:${minutes}`;
+    }
+}
+
+// 時刻更新のインターバルを開始
+function startTimeUpdateInterval() {
+    // 既存のインターバルがあればクリア
+    if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+    }
+
+    // 1分（60秒）ごとに時刻を更新
+    timeUpdateInterval = setInterval(() => {
+        updateDisplayedTimes();
+    }, 60000);
+}
+
+// 時刻更新のインターバルを停止
+function stopTimeUpdateInterval() {
+    if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+        timeUpdateInterval = null;
+    }
+}
+
+// 表示されている時刻を更新
+function updateDisplayedTimes() {
+    // 現在の状況カードの時刻を更新
+    const memberCards = elements.familyStatus.querySelectorAll('.member-card');
+    memberCards.forEach(card => {
+        const timestamp = card.dataset.timestamp;
+        if (timestamp) {
+            const timeElement = card.querySelector('.member-time');
+            if (timeElement) {
+                timeElement.textContent = formatTime(timestamp);
+            }
+        }
+    });
+
+    // 履歴アイテムの時刻を更新
+    const historyItems = elements.historyList.querySelectorAll('.history-item');
+    historyItems.forEach(item => {
+        const timestamp = item.dataset.timestamp;
+        if (timestamp) {
+            const timeElement = item.querySelector('.history-time');
+            if (timeElement) {
+                timeElement.textContent = formatHistoryTime(timestamp);
+            }
+        }
+    });
+}
+
 // ページ読み込み時に初期化
 document.addEventListener('DOMContentLoaded', init);
 
@@ -507,4 +792,5 @@ document.addEventListener('DOMContentLoaded', init);
 window.addEventListener('beforeunload', () => {
     closeSSE();
     stopPolling();
+    stopTimeUpdateInterval();
 });

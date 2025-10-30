@@ -13,6 +13,11 @@
             <button id="settingsBtn" class="settings-btn">⚙️ 設定</button>
         </header>
 
+        <nav class="tab-navigation">
+            <button id="currentTab" class="tab-btn active">現在</button>
+            <button id="historyTab" class="tab-btn">履歴</button>
+        </nav>
+
         <div id="mainView">
             <section class="status-display">
                 <h2>家族の状況</h2>
@@ -65,6 +70,41 @@
             </section>
         </div>
 
+        <div id="historyView" class="hidden">
+            <section class="history-section">
+                <h2>履歴</h2>
+
+                <div class="history-filters">
+                    <div class="filter-group">
+                        <label for="historyMemberFilter">メンバー:</label>
+                        <select id="historyMemberFilter">
+                            <option value="">全員</option>
+                            <option value="たー">たー</option>
+                            <option value="はー">はー</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="historyDateFilter">期間:</label>
+                        <select id="historyDateFilter">
+                            <option value="today">今日</option>
+                            <option value="week">過去7日間</option>
+                            <option value="month">過去30日間</option>
+                            <option value="all">全期間</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="historyList" class="history-list">
+                    <!-- 履歴がここに表示されます -->
+                </div>
+
+                <div class="history-pagination">
+                    <button id="loadMoreHistory" class="btn-secondary hidden">さらに読み込む</button>
+                </div>
+            </section>
+        </div>
+
         <div id="settingsView" class="hidden">
             <h2>設定</h2>
             <div class="settings-content">
@@ -79,6 +119,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>
