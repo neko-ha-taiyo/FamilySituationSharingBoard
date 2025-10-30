@@ -334,6 +334,10 @@ app.get('/api/history/:name', (req, res) => {
             },
             history: history.map(h => ({
                 id: h.id,
+                member: {
+                    id: member.id,
+                    name: member.name
+                },
                 activity: h.activity,
                 state: h.state,
                 changed_at: h.changed_at
